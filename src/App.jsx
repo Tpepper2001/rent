@@ -1,4 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Building2, LogOut, Home, Wrench, PlusCircle,
