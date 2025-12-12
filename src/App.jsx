@@ -2,8 +2,8 @@ import React, { useState, useEffect, createContext, useContext, useCallback } fr
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Building2, LogOut, Home, Wrench, PlusCircle, X,
-  User, CheckCircle, AlertCircle, Loader2, Mail, Lock, AlertTriangle, Info, RefreshCw
+  Building2, LogOut, Home, Wrench, PlusCircle, X, ArrowLeft,
+  User, CheckCircle, AlertCircle, Loader2, Mail, Lock, Key, ArrowRight, LayoutGrid, Shield
 } from 'lucide-react';
 import './index.css';
 
@@ -15,14 +15,7 @@ if (!supabaseUrl || !supabaseKey) {
   console.error("Supabase keys missing. Check .env file.");
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    // This setting prevents the client from automatically crashing on bad tokens
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
-});
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- 2. TOAST CONTEXT ---
 const ToastContext = createContext();
@@ -54,39 +47,27 @@ const ToastProvider = ({ children }) => {
 };
 const useToast = () => useContext(ToastContext);
 
-// --- 3. AUTH CONTEXT (ROBUST VERSION) ---
+// --- 3. AUTH CONTEXT ---
 const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { addToast } = useToast();
 
   useEffect(() => {
     let mounted = true;
 
     const initAuth = async () => {
       try {
-        // 1. Get Session safely
         const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-           throw error;
-        }
-
         if (session) {
           setSession(session);
-          // 2. Fetch Role
           const { data, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single();
-
+            .from('profiles').select('role').eq('id', session.user.id).single();
+          
           if (profileError) {
-            console.warn("Profile check failed, likely deleted user.");
-            // If profile is gone, force logout to clear bad state
+            // Safety: If profile missing, logout to prevent stuck state
             await supabase.auth.signOut();
             setSession(null);
           } else if (data) {
@@ -94,9 +75,9 @@ const AuthProvider = ({ children }) => {
           }
         }
       } catch (err) {
-        console.error("Auth Error:", err.message);
-        // CRITICAL FIX: If token is bad, clear it so we can see the Login Screen
-        if (err.message.includes("Refresh Token") || err.message.includes("Bad Request")) {
+        console.error(err);
+        // Safety: Clear session on bad token
+        if (err.message.includes("Refresh Token")) {
            await supabase.auth.signOut();
            setSession(null);
         }
@@ -107,24 +88,19 @@ const AuthProvider = ({ children }) => {
 
     initAuth();
 
-    // Listener for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         setSession(null);
         setUserRole(null);
-        setLoading(false);
       } else if (session) {
         setSession(session);
         const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
         if (data) setUserRole(data.role);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
   const signOut = async () => {
@@ -148,123 +124,95 @@ const useAuth = () => useContext(AuthContext);
 
 const Spinner = () => <Loader2 className="animate-spin text-indigo-600" size={24} />;
 
-const Button = ({ children, isLoading, onClick, className = "" }) => (
-  <button 
-    onClick={onClick}
-    disabled={isLoading}
-    className={`w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 flex justify-center items-center gap-2 disabled:opacity-70 ${className}`}
-  >
-    {isLoading ? <Spinner /> : children}
-  </button>
-);
+const Button = ({ children, isLoading, onClick, variant = 'primary', className = "" }) => {
+  const base = "py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-70 active:scale-95";
+  const styles = {
+    primary: "bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200",
+    secondary: "bg-white text-slate-700 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600",
+    ghost: "text-slate-600 hover:bg-slate-100"
+  };
+  return (
+    <button onClick={onClick} disabled={isLoading} className={`${base} ${styles[variant]} ${className}`}>
+      {isLoading ? <Spinner /> : children}
+    </button>
+  );
+};
 
 const Input = ({ label, ...props }) => (
-  <div className="space-y-1">
+  <div className="space-y-1.5">
     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">{label}</label>
     <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" {...props} />
   </div>
 );
 
-// --- 5. DASHBOARD VIEWS ---
+// --- 5. LANDING PAGE (NEW) ---
 
-const TenantView = ({ session }) => {
-  const [requests, setRequests] = useState([]);
-  const { addToast } = useToast();
-
-  useEffect(() => {
-    supabase.from('maintenance_requests').select('*').eq('tenant_id', session.user.id)
-      .then(({data}) => setRequests(data || []));
-  }, []);
-
-  const handleRequest = async () => {
-    const desc = prompt("What needs fixing?");
-    if (!desc) return;
-    const { data, error } = await supabase.from('maintenance_requests').insert({
-      tenant_id: session.user.id, description: desc
-    }).select();
-    if (error) addToast('error', error.message);
-    else {
-      setRequests([data[0], ...requests]);
-      addToast('success', 'Request Sent');
-    }
-  };
-
-  return (
-    <div className="space-y-6 animate-slide-in">
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-        <h2 className="text-2xl font-bold mb-1">Welcome Home</h2>
-        <p className="opacity-90">Tenant Portal</p>
-        <div className="mt-6 flex gap-3">
-          <button className="bg-white text-indigo-700 px-4 py-2 rounded-lg font-bold text-sm">Pay Rent</button>
-          <button onClick={handleRequest} className="bg-indigo-500/30 text-white px-4 py-2 rounded-lg font-bold text-sm border border-white/20">Request Fix</button>
+const LandingPage = ({ onNavigate }) => (
+  <div className="min-h-screen bg-white">
+    {/* Header */}
+    <header className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-100 z-50">
+      <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
+        <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
+          <Building2 size={24}/> <span>PropMaster</span>
+        </div>
+        <div className="flex gap-4">
+          <Button variant="ghost" onClick={() => onNavigate('login')}>Log In</Button>
+          <Button variant="primary" onClick={() => onNavigate('register')}>Get Started</Button>
         </div>
       </div>
+    </header>
 
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Wrench size={20}/> Maintenance</h3>
-        <div className="space-y-3">
-          {requests.map(r => (
-            <div key={r.id} className="flex justify-between p-3 bg-slate-50 rounded-lg text-sm">
-              <span>{r.description}</span>
-              <span className="font-bold text-amber-600 uppercase text-xs">{r.status}</span>
+    {/* Hero */}
+    <section className="pt-20 pb-32 px-6 text-center max-w-5xl mx-auto">
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 text-indigo-700 text-sm font-medium mb-8">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+        </span>
+        The Future of Property Management
+      </div>
+      <h1 className="text-5xl md:text-7xl font-black text-slate-900 tracking-tight mb-8">
+        Manage properties <br />
+        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">without the headache.</span>
+      </h1>
+      <p className="text-xl text-slate-500 mb-10 max-w-2xl mx-auto leading-relaxed">
+        Connect landlords, tenants, and real estate companies in one seamless platform. Automated rent, maintenance tracking, and portfolio analytics.
+      </p>
+      <div className="flex flex-col sm:flex-row justify-center gap-4">
+        <Button onClick={() => onNavigate('register')} className="h-14 px-8 text-lg">
+          Start for Free <ArrowRight size={20}/>
+        </Button>
+        <Button variant="secondary" onClick={() => onNavigate('login')} className="h-14 px-8 text-lg">
+          View Demo
+        </Button>
+      </div>
+    </section>
+
+    {/* Features Grid */}
+    <section className="bg-slate-50 py-24 px-6">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
+        {[
+          { icon: User, title: 'For Tenants', desc: 'Pay rent online and request maintenance in seconds.' },
+          { icon: Key, title: 'For Landlords', desc: 'Screen tenants, track payments, and manage units.' },
+          { icon: LayoutGrid, title: 'For Companies', desc: 'Scale your portfolio with enterprise-grade tools.' }
+        ].map((item, i) => (
+          <div key={i} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
+            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-6">
+              <item.icon size={24} />
             </div>
-          ))}
-          {requests.length === 0 && <p className="text-slate-400 text-sm text-center py-4">No active requests.</p>}
-        </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">{item.title}</h3>
+            <p className="text-slate-500 leading-relaxed">{item.desc}</p>
+          </div>
+        ))}
       </div>
-    </div>
-  );
-};
+    </section>
+  </div>
+);
 
-const LandlordView = ({ session }) => {
-  const [props, setProps] = useState([]);
-  const { addToast } = useToast();
+// --- 6. AUTH SCREEN (Login/Register) ---
 
-  useEffect(() => {
-    supabase.from('properties').select('*').eq('owner_id', session.user.id)
-      .then(({data}) => setProps(data || []));
-  }, []);
-
-  const addProp = async () => {
-    const addr = prompt("Address:");
-    if(!addr) return;
-    const { data, error } = await supabase.from('properties').insert({ owner_id: session.user.id, address: addr }).select();
-    if(error) addToast('error', error.message);
-    else {
-      setProps([...props, data[0]]);
-      addToast('success', 'Property Added');
-    }
-  };
-
-  return (
-    <div className="space-y-6 animate-slide-in">
-       <div className="flex justify-between items-end mb-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Portfolio</h2>
-          <p className="text-slate-500 text-sm">Manage your units</p>
-        </div>
-        <button onClick={addProp} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
-          <PlusCircle size={16}/> Add Unit
-        </button>
-       </div>
-       
-       <div className="grid md:grid-cols-2 gap-4">
-         {props.map(p => (
-           <div key={p.id} className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition">
-             <div className="flex justify-between items-start">
-               <div className="font-bold text-slate-800">{p.address}</div>
-               <span className="text-xs font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full uppercase">{p.status}</span>
-             </div>
-           </div>
-         ))}
-       </div>
-    </div>
-  );
-};
-
-// --- 6. AUTH SCREEN (LANDING PAGE) ---
-const AuthScreen = () => {
-  const [isLogin, setIsLogin] = useState(true);
+const AuthScreen = ({ initialView = 'login', onBack }) => {
+  const [isLogin, setIsLogin] = useState(initialView === 'login');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({email:'', password:'', name:'', role:'tenant'});
   const { addToast } = useToast();
@@ -282,7 +230,8 @@ const AuthScreen = () => {
           options: { data: { full_name: formData.name, role: formData.role } }
         });
         if(error) throw error;
-        addToast('success', 'Account created! Check email or sign in.');
+        addToast('success', 'Account created! Please Log In.');
+        setIsLogin(true); // Switch to login after register
       }
     } catch(err) {
       addToast('error', err.message);
@@ -292,11 +241,15 @@ const AuthScreen = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100">
-        <div className="text-center mb-8">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 animate-fade-in">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100 relative">
+        <button onClick={onBack} className="absolute top-6 left-6 text-slate-400 hover:text-slate-600">
+          <ArrowLeft size={20} />
+        </button>
+        
+        <div className="text-center mb-8 mt-2">
           <div className="inline-block p-3 bg-indigo-50 rounded-2xl text-indigo-600 mb-4"><Building2 size={32}/></div>
-          <h1 className="text-2xl font-bold text-slate-900">{isLogin ? 'Welcome Back' : 'Get Started'}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{isLogin ? 'Welcome Back' : 'Create Account'}</h1>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
@@ -315,13 +268,13 @@ const AuthScreen = () => {
             </div>
           )}
 
-          <Button isLoading={loading} className="mt-4">{isLogin ? 'Sign In' : 'Create Account'}</Button>
+          <Button isLoading={loading} className="w-full mt-4">{isLogin ? 'Sign In' : 'Sign Up'}</Button>
         </form>
 
         <p className="text-center mt-6 text-sm text-slate-500">
           {isLogin ? 'New here?' : 'Have an account?'} 
           <button onClick={()=>setIsLogin(!isLogin)} className="text-indigo-600 font-bold ml-2 hover:underline">
-            {isLogin ? 'Sign Up' : 'Log In'}
+            {isLogin ? 'Create Account' : 'Log In'}
           </button>
         </p>
       </div>
@@ -329,42 +282,161 @@ const AuthScreen = () => {
   );
 };
 
-// --- 7. APP LAYOUT ---
+// --- 7. DASHBOARD COMPONENTS ---
+
+const TenantView = ({ session }) => {
+  const [requests, setRequests] = useState([]);
+  const { addToast } = useToast();
+
+  useEffect(() => {
+    supabase.from('maintenance_requests').select('*').eq('tenant_id', session.user.id)
+      .then(({data}) => setRequests(data || []));
+  }, []);
+
+  const handleRequest = async () => {
+    const desc = prompt("Describe the issue:");
+    if (!desc) return;
+    const { data, error } = await supabase.from('maintenance_requests').insert({
+      tenant_id: session.user.id, description: desc
+    }).select();
+    if (error) addToast('error', error.message);
+    else {
+      setRequests([data[0], ...requests]);
+      addToast('success', 'Request Sent');
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-slide-in">
+      <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-8 text-white shadow-lg">
+        <h2 className="text-3xl font-bold mb-2">Welcome Home</h2>
+        <p className="opacity-90 mb-6">Your rental overview</p>
+        <div className="flex gap-3">
+          <button className="bg-white text-indigo-700 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition">Pay Rent</button>
+          <button onClick={handleRequest} className="bg-white/20 text-white px-6 py-3 rounded-xl font-bold hover:bg-white/30 transition">Request Maintenance</button>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Wrench size={20}/> Maintenance History</h3>
+        <div className="space-y-3">
+          {requests.map(r => (
+            <div key={r.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+              <span className="font-medium text-slate-700">{r.description}</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${r.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{r.status}</span>
+            </div>
+          ))}
+          {requests.length === 0 && <p className="text-slate-400 text-center py-8">No active requests.</p>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const LandlordView = ({ session }) => {
+  const [props, setProps] = useState([]);
+  const { addToast } = useToast();
+
+  useEffect(() => {
+    supabase.from('properties').select('*').eq('owner_id', session.user.id)
+      .then(({data}) => setProps(data || []));
+  }, []);
+
+  const addProp = async () => {
+    const addr = prompt("Property Address:");
+    if(!addr) return;
+    const { data, error } = await supabase.from('properties').insert({ owner_id: session.user.id, address: addr }).select();
+    if(error) addToast('error', error.message);
+    else {
+      setProps([...props, data[0]]);
+      addToast('success', 'Unit Added');
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-slide-in">
+       <div className="flex justify-between items-end mb-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">My Portfolio</h2>
+          <p className="text-slate-500">Manage your rental units</p>
+        </div>
+        <Button onClick={addProp} className="py-2.5 text-sm"><PlusCircle size={18}/> Add Unit</Button>
+       </div>
+       
+       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+         {props.map(p => (
+           <div key={p.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition group">
+             <div className="flex justify-between items-start mb-4">
+               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                 <Home size={24}/>
+               </div>
+               <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase">{p.status}</span>
+             </div>
+             <div className="font-bold text-lg text-slate-900">{p.address}</div>
+             <p className="text-slate-500 text-sm mt-1">Managed Unit</p>
+           </div>
+         ))}
+         {props.length === 0 && (
+           <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+             <p className="text-slate-400">No properties yet.</p>
+           </div>
+         )}
+       </div>
+    </div>
+  );
+};
+
+// --- 8. MAIN APP LAYOUT (STATE MACHINE) ---
+
 const AppLayout = () => {
   const { session, userRole, loading, signOut } = useAuth();
+  // State to handle Landing vs Login vs Register when NOT logged in
+  const [view, setView] = useState('landing'); // 'landing' | 'login' | 'register'
 
-  // EMERGENCY RESET BUTTON (If stuck loading)
+  // 1. Loading
   if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white">
       <Spinner />
-      <p className="text-slate-500 text-sm mt-4 mb-8">Connecting...</p>
-      <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 border border-slate-200 px-3 py-1 rounded-full">
-        <RefreshCw size={12}/> Reset Cache
+      <p className="text-slate-400 text-sm mt-4">Loading PropMaster...</p>
+      {/* Emergency Reset if stuck */}
+      <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="mt-8 text-xs text-slate-300 hover:text-red-500 underline">
+        Reset App Cache
       </button>
     </div>
   );
 
-  if (!session) return <AuthScreen />;
+  // 2. Unauthenticated: Show Landing OR Auth Screen based on 'view' state
+  if (!session) {
+    if (view === 'landing') {
+      return <LandingPage onNavigate={setView} />;
+    }
+    return <AuthScreen initialView={view} onBack={() => setView('landing')} />;
+  }
 
+  // 3. Authenticated: Show Dashboard
   return (
     <div className="min-h-screen bg-slate-50">
       <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
         <div className="font-bold text-xl text-indigo-600 flex items-center gap-2"><Building2/> PropMaster</div>
         <div className="flex items-center gap-4">
           <span className="text-xs font-bold bg-slate-100 px-3 py-1 rounded-full uppercase text-slate-500">{userRole}</span>
-          <button onClick={signOut} className="text-slate-400 hover:text-red-600"><LogOut size={20}/></button>
+          <button onClick={signOut} className="text-slate-400 hover:text-red-600 transition"><LogOut size={20}/></button>
         </div>
       </nav>
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        {userRole === 'tenant' && <TenantView session={session} />}
-        {userRole === 'landlord' && <LandlordView session={session} />}
-        {userRole === 'company' && <div className="text-center text-slate-400 mt-20">Company Dashboard Placeholder</div>}
+      <main className="max-w-6xl mx-auto px-6 py-8">
+        {!userRole ? <div className="text-center py-10"><Spinner/></div> : 
+          <>
+            {userRole === 'tenant' && <TenantView session={session} />}
+            {userRole === 'landlord' && <LandlordView session={session} />}
+            {userRole === 'company' && <div className="text-center text-slate-400 mt-20">Company Dashboard Placeholder</div>}
+          </>
+        }
       </main>
     </div>
   );
 };
 
-// --- 8. MOUNT ---
+// --- 9. MOUNT ---
 const root = document.getElementById('root');
 if(root) {
   createRoot(root).render(
