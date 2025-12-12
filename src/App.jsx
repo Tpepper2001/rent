@@ -1,17 +1,27 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
+import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, Outlet } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
-import { Building2, Key, User, LogOut, Home, Wrench, DollarSign, PlusCircle, AlertCircle } from 'lucide-react';
+import { 
+  Building2, LogOut, Home, Wrench, PlusCircle, 
+  User, CheckCircle, AlertCircle, LayoutDashboard 
+} from 'lucide-react';
+import './index.css';
 
-// --- 1. CONFIGURATION ---
-const supabaseUrl ='https://ccaagvcrctbdbtmelmak.supabase.co';
+// --- 1. SUPABASE CONFIGURATION ---
+const supabaseUrl = 'https://ccaagvcrctbdbtmelmak.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjYWFndmNyY3RiZGJ0bWVsbWFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU1NDcxMDEsImV4cCI6MjA4MTEyMzEwMX0.kkoAUyEf5u8BTOdP_JIOqaVWXUPZNS4oxPqo0-cSIAc';
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Missing Supabase Environment Variables!");
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- 2. AUTH CONTEXT (Global State) ---
+// --- 2. AUTH CONTEXT ---
 const AuthContext = createContext();
 
-export const AuthProvider = ({ children }) => {
+const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +34,7 @@ export const AuthProvider = ({ children }) => {
       else setLoading(false);
     });
 
-    // Listen for changes
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) fetchRole(session.user.id);
@@ -47,7 +57,7 @@ export const AuthProvider = ({ children }) => {
       
       if (data) setUserRole(data.role);
     } catch (error) {
-      console.error('Role fetch error:', error);
+      console.error('Error fetching role:', error);
     } finally {
       setLoading(false);
     }
@@ -65,42 +75,12 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+const useAuth = () => useContext(AuthContext);
 
 // --- 3. UI COMPONENTS ---
 
-// Shared Layout with Navbar
-const Layout = () => {
-  const { signOut, userRole, session } = useAuth();
-  
-  return (
-    <div className="min-h-screen bg-gray-50 font-sans">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10">
-        <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
-          <Building2 /> <span>PropMaster</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full uppercase text-xs font-bold tracking-wider">
-            {userRole || 'Guest'}
-          </span>
-          <div className="text-sm font-medium text-gray-700 hidden md:block">
-            {session?.user?.email}
-          </div>
-          <button onClick={signOut} className="text-gray-500 hover:text-red-600 transition">
-            <LogOut size={20} />
-          </button>
-        </div>
-      </nav>
-      <div className="p-6 max-w-7xl mx-auto">
-        <Outlet />
-      </div>
-    </div>
-  );
-};
-
-// Generic Card Component
 const Card = ({ title, icon: Icon, children, action }) => (
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
     <div className="flex justify-between items-start mb-4">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
@@ -108,237 +88,325 @@ const Card = ({ title, icon: Icon, children, action }) => (
         </div>
         <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
       </div>
-      {action}
+      {action && <div>{action}</div>}
     </div>
     <div className="text-gray-600">{children}</div>
   </div>
 );
 
+const Navbar = () => {
+  const { signOut, userRole, session } = useAuth();
+  return (
+    <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+      <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
+        <Building2 /> <span>PropMaster</span>
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-bold uppercase tracking-wider">
+          {userRole || 'Guest'}
+        </span>
+        <span className="hidden md:block text-sm text-gray-500">{session?.user?.email}</span>
+        <button onClick={signOut} className="text-gray-400 hover:text-red-600 transition-colors" title="Sign Out">
+          <LogOut size={20} />
+        </button>
+      </div>
+    </nav>
+  );
+};
+
+const ProtectedLayout = () => {
+  const { session } = useAuth();
+  if (!session) return <Navigate to="/login" replace />;
+  
+  return (
+    <div className="min-h-screen bg-gray-50 pb-12">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <Outlet />
+      </div>
+    </div>
+  );
+};
+
 // --- 4. DASHBOARD VIEWS ---
 
+// TENANT DASHBOARD
 const TenantView = () => {
-  const [requests, setRequests] = useState([]);
   const { session } = useAuth();
+  const [requests, setRequests] = useState([]);
 
-  // Real data fetching example
   useEffect(() => {
     const fetchRequests = async () => {
-      const { data } = await supabase.from('maintenance_requests').select('*').eq('tenant_id', session.user.id);
+      const { data } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .eq('tenant_id', session.user.id)
+        .order('created_at', { ascending: false });
       if (data) setRequests(data);
     };
     fetchRequests();
   }, [session]);
 
-  const handleNewRequest = async () => {
-    const desc = prompt("Describe the issue:");
+  const handleRequest = async () => {
+    const desc = prompt("Describe the maintenance issue:");
     if (!desc) return;
-    const { error } = await supabase.from('maintenance_requests').insert({
-      tenant_id: session.user.id,
-      description: desc,
-      status: 'pending'
-    });
-    if (!error) alert('Request submitted!');
+    
+    const { data, error } = await supabase
+      .from('maintenance_requests')
+      .insert({ tenant_id: session.user.id, description: desc, status: 'pending' })
+      .select();
+
+    if (!error && data) setRequests([data[0], ...requests]);
+    else alert("Error submitting request");
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <Card title="Current Lease" icon={Home}>
-        <p className="text-2xl font-bold text-gray-900">$1,200 <span className="text-sm font-normal text-gray-500">/mo</span></p>
-        <p className="text-sm text-gray-500 mt-1">Due: Oct 1st, 2025</p>
-        <button className="mt-4 w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">Pay Rent</button>
-      </Card>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Welcome Home</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card title="Lease Overview" icon={Home}>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500">Monthly Rent</p>
+            <p className="text-3xl font-bold text-gray-900">$1,200.00</p>
+            <p className="text-sm text-orange-600 font-medium bg-orange-50 inline-block px-2 py-1 rounded">
+              Due in 5 days
+            </p>
+            <button className="w-full mt-4 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
+              Pay Now
+            </button>
+          </div>
+        </Card>
 
-      <Card title="Maintenance" icon={Wrench} 
-        action={<button onClick={handleNewRequest} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded"><PlusCircle size={20}/></button>}>
-        {requests.length === 0 ? <p>No active requests.</p> : (
-          <ul className="space-y-2">
-            {requests.map(req => (
-              <li key={req.id} className="flex justify-between text-sm border-b pb-2">
-                <span>{req.description}</span>
-                <span className={`px-2 py-0.5 rounded text-xs ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                  {req.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+        <Card title="Maintenance" icon={Wrench} 
+          action={<button onClick={handleRequest} className="text-indigo-600 hover:text-indigo-800"><PlusCircle /></button>}>
+          <div className="max-h-60 overflow-y-auto space-y-3">
+            {requests.length === 0 ? <p className="text-sm text-gray-400">No active requests.</p> : (
+              requests.map(req => (
+                <div key={req.id} className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                  <span className="truncate w-2/3">{req.description}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize
+                    ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                      req.status === 'resolved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                    {req.status.replace('_', ' ')}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };
 
+// LANDLORD DASHBOARD
 const LandlordView = () => {
-  const [properties, setProperties] = useState([]);
   const { session } = useAuth();
+  const [properties, setProperties] = useState([]);
 
   useEffect(() => {
     const fetchProps = async () => {
-      const { data } = await supabase.from('properties').select('*').eq('owner_id', session.user.id);
+      const { data } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('owner_id', session.user.id);
       if (data) setProperties(data);
     };
     fetchProps();
   }, [session]);
 
   const addProperty = async () => {
-    const address = prompt("Property Address:");
+    const address = prompt("Enter Property Address:");
     if (!address) return;
-    const { error } = await supabase.from('properties').insert({ owner_id: session.user.id, address, status: 'vacant' });
-    if (!error) window.location.reload(); 
+    const price = prompt("Enter Monthly Rent Amount:");
+    
+    const { data, error } = await supabase
+      .from('properties')
+      .insert({ owner_id: session.user.id, address, price: parseFloat(price), status: 'vacant' })
+      .select();
+
+    if (!error && data) setProperties([...properties, data[0]]);
   };
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">My Portfolio</h2>
-        <button onClick={addProperty} className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800">
-          <PlusCircle size={18}/> Add Property
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Property Portfolio</h1>
+        <button onClick={addProperty} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
+          <PlusCircle size={18} /> Add Property
         </button>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {properties.map(prop => (
           <Card key={prop.id} title="Property" icon={Home}>
-            <h4 className="font-semibold">{prop.address}</h4>
-            <p className="text-sm text-gray-500 mb-3 capitalize">Status: {prop.status}</p>
-            <div className="flex gap-2 text-sm">
-              <button className="text-indigo-600 font-medium">View Lease</button>
-              <button className="text-gray-500">History</button>
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-bold text-gray-900">{prop.address}</h4>
+                <p className="text-indigo-600 font-medium">${prop.price}/mo</p>
+              </div>
+              <span className={`px-2 py-1 rounded text-xs font-bold uppercase
+                ${prop.status === 'vacant' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                {prop.status}
+              </span>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3 text-sm">
+              <button className="text-gray-500 hover:text-indigo-600">Details</button>
+              <button className="text-gray-500 hover:text-indigo-600">History</button>
             </div>
           </Card>
         ))}
-        {properties.length === 0 && <p className="text-gray-500">No properties found.</p>}
+        {properties.length === 0 && (
+          <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-gray-300 text-gray-400">
+            No properties added yet.
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
+// COMPANY DASHBOARD
 const CompanyView = () => (
-  <div className="space-y-6">
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      {['Total Revenue', 'Active Units', 'Vacancies', 'Agents'].map((stat) => (
-        <div key={stat} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm">{stat}</p>
-          <p className="text-2xl font-bold text-gray-800 mt-1">--</p>
-        </div>
-      ))}
+  <div className="space-y-8">
+    <h1 className="text-2xl font-bold text-gray-900">Enterprise Dashboard</h1>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="bg-indigo-600 text-white p-6 rounded-xl shadow-lg">
+        <p className="text-indigo-200">Total Revenue (YTD)</p>
+        <p className="text-4xl font-bold mt-2">$2.4M</p>
+      </div>
+      <Card title="Active Agents" icon={User}>
+        <p className="text-3xl font-bold text-gray-900">24</p>
+        <p className="text-sm text-green-600 mt-1 flex items-center gap-1"><CheckCircle size={14}/> 100% Online</p>
+      </Card>
+      <Card title="System Alerts" icon={AlertCircle}>
+        <p className="text-3xl font-bold text-gray-900">3</p>
+        <p className="text-sm text-red-600 mt-1">Requires attention</p>
+      </Card>
     </div>
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <h3 className="font-bold text-lg mb-4">Enterprise Management</h3>
-      <p className="text-gray-600">This view would contain high-level analytics and user management tables.</p>
+    
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 font-medium text-gray-700">Recent Transactions</div>
+      <div className="p-6 text-gray-500 text-center italic">
+        Transaction table placeholder...
+      </div>
     </div>
   </div>
 );
 
 // --- 5. AUTH PAGES ---
 
-const Login = () => {
-  const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) alert(error.message);
-    setLoading(false);
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6">Welcome Back</h2>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} 
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" required />
-          <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} 
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" required />
-          <button disabled={loading} className="w-full bg-indigo-600 text-white p-3 rounded-lg font-bold hover:bg-indigo-700 transition disabled:opacity-50">
-            {loading ? 'Signing In...' : 'Sign In'}
-          </button>
-        </form>
-        <p className="mt-4 text-center text-sm">
-          New here? <Link to="/register" className="text-indigo-600 font-bold">Create Account</Link>
-        </p>
-      </div>
-    </div>
-  );
-};
-
-const Register = () => {
+const AuthPage = ({ type }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '', role: 'tenant', fullName: '' });
-  
-  const handleRegister = async (e) => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // 1. Sign Up
-    const { data: { user }, error: authError } = await supabase.auth.signUp({ 
-      email: formData.email, 
-      password: formData.password,
-      options: {
-        data: { full_name: formData.fullName, role: formData.role } // Metadata for trigger
-      }
-    });
-
-    if (authError) alert(authError.message);
-    else alert("Success! Check your email to confirm.");
-    
+    if (type === 'login') {
+      const { error } = await supabase.auth.signInWithPassword({ 
+        email: formData.email, 
+        password: formData.password 
+      });
+      if (error) alert(error.message);
+    } else {
+      // Register
+      const { error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: { full_name: formData.fullName, role: formData.role }
+        }
+      });
+      if (error) alert(error.message);
+      else alert("Check your email for confirmation link!");
+    }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6">Create Account</h2>
-        <form onSubmit={handleRegister} className="space-y-4">
-          <input type="text" placeholder="Full Name" onChange={e=>setFormData({...formData, fullName: e.target.value})} 
-            className="w-full p-3 border rounded-lg" required />
-          <input type="email" placeholder="Email" onChange={e=>setFormData({...formData, email: e.target.value})} 
-            className="w-full p-3 border rounded-lg" required />
-          <input type="password" placeholder="Password" onChange={e=>setFormData({...formData, password: e.target.value})} 
-            className="w-full p-3 border rounded-lg" required />
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100">
+        <div className="flex justify-center mb-6 text-indigo-600">
+          <Building2 size={48} />
+        </div>
+        <h2 className="text-2xl font-bold text-center mb-8 text-gray-800">
+          {type === 'login' ? 'Welcome Back' : 'Create Account'}
+        </h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {type === 'register' && (
+            <input type="text" placeholder="Full Name" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+              onChange={e => setFormData({...formData, fullName: e.target.value})} required />
+          )}
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">I am a:</label>
-            <div className="grid grid-cols-3 gap-2">
-              {['tenant', 'landlord', 'company'].map((r) => (
-                <button key={r} type="button" 
+          <input type="email" placeholder="Email Address" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+            onChange={e => setFormData({...formData, email: e.target.value})} required />
+            
+          <input type="password" placeholder="Password" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+            onChange={e => setFormData({...formData, password: e.target.value})} required />
+
+          {type === 'register' && (
+            <div className="grid grid-cols-3 gap-2 pt-2">
+              {['tenant', 'landlord', 'company'].map(r => (
+                <button type="button" key={r}
                   onClick={() => setFormData({...formData, role: r})}
-                  className={`p-2 text-sm rounded border ${formData.role === r ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-gray-200'}`}>
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                  className={`py-2 px-1 text-xs font-bold uppercase rounded border transition-all ${
+                    formData.role === r 
+                      ? 'bg-indigo-600 text-white border-indigo-600' 
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'
+                  }`}
+                >
+                  {r}
                 </button>
               ))}
             </div>
-          </div>
+          )}
 
-          <button disabled={loading} className="w-full bg-green-600 text-white p-3 rounded-lg font-bold hover:bg-green-700 transition disabled:opacity-50">
-            {loading ? 'Creating...' : 'Register'}
+          <button disabled={loading} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition disabled:opacity-50 mt-4">
+            {loading ? 'Processing...' : (type === 'login' ? 'Sign In' : 'Register')}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm">
-          Have an account? <Link to="/login" className="text-indigo-600 font-bold">Login</Link>
+
+        <p className="text-center mt-6 text-sm text-gray-500">
+          {type === 'login' ? "Don't have an account?" : "Already have an account?"}
+          <Link to={type === 'login' ? '/register' : '/login'} className="ml-2 text-indigo-600 font-bold hover:underline">
+            {type === 'login' ? 'Sign Up' : 'Log In'}
+          </Link>
         </p>
       </div>
     </div>
   );
 };
 
-// --- 6. ROUTER ---
+// --- 6. ROUTING & LOGIC ---
+
+const RoleBasedRedirect = () => {
+  const { userRole } = useAuth();
+  
+  // While fetching role
+  if (!userRole) return <div className="p-10 text-center text-gray-500">Loading your profile...</div>;
+
+  switch (userRole) {
+    case 'tenant': return <TenantView />;
+    case 'landlord': return <LandlordView />;
+    case 'company': return <CompanyView />;
+    default: return <div className="p-10 text-center text-red-500">Error: Unknown Role</div>;
+  }
+};
 
 export default function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<AuthPage type="login" />} />
+          <Route path="/register" element={<AuthPage type="register" />} />
           
-          {/* Protected Routes */}
-          <Route element={<Layout />}>
+          <Route element={<ProtectedLayout />}>
             <Route path="/" element={<RoleBasedRedirect />} />
-            <Route path="/dashboard" element={<RoleBasedRedirect />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </Router>
@@ -346,18 +414,13 @@ export default function App() {
   );
 }
 
-// Redirects user to their specific view based on role
-const RoleBasedRedirect = () => {
-  const { userRole, session } = useAuth();
-
-  if (!session) return <Navigate to="/login" />;
-  if (!userRole) return <div className="p-8 text-center">Loading profile...</div>;
-
-  switch (userRole) {
-    case 'tenant': return <TenantView />;
-    case 'landlord': return <LandlordView />;
-    case 'company': return <CompanyView />;
-    default: return <div className="p-8 text-red-600">Unknown Role</div>;
-  }
-};
-
+// --- 7. MOUNTING TO DOM (Replaces main.jsx) ---
+const rootElement = document.getElementById('root');
+if (rootElement && !rootElement.innerHTML) {
+  const root = createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
