@@ -3,8 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, Outlet } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Building2, LogOut, Home, Wrench, PlusCircle, 
-  User, CheckCircle, AlertCircle, LayoutDashboard 
+  Building2, LogOut, Home, Wrench, PlusCircle, ArrowRight,
+  User, CheckCircle, AlertCircle, Shield, Key, Wallet, LayoutGrid
 } from 'lucide-react';
 import './index.css';
 
@@ -12,9 +12,7 @@ import './index.css';
 const supabaseUrl = 'https://ccaagvcrctbdbtmelmak.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjYWFndmNyY3RiZGJ0bWVsbWFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU1NDcxMDEsImV4cCI6MjA4MTEyMzEwMX0.kkoAUyEf5u8BTOdP_JIOqaVWXUPZNS4oxPqo0-cSIAc';
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing Supabase Environment Variables!");
-}
+if (!supabaseUrl || !supabaseKey) console.error("Missing Supabase Env Variables");
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -27,14 +25,12 @@ const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchRole(session.user.id);
       else setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) fetchRole(session.user.id);
@@ -43,24 +39,15 @@ const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
   const fetchRole = async (userId) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-      
+      const { data } = await supabase.from('profiles').select('role').eq('id', userId).single();
       if (data) setUserRole(data.role);
-    } catch (error) {
-      console.error('Error fetching role:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); } 
+    finally { setLoading(false); }
   };
 
   const signOut = async () => {
@@ -77,121 +64,224 @@ const AuthProvider = ({ children }) => {
 
 const useAuth = () => useContext(AuthContext);
 
-// --- 3. UI COMPONENTS ---
+// --- 3. SHARED UI COMPONENTS ---
 
-const Card = ({ title, icon: Icon, children, action }) => (
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
-    <div className="flex justify-between items-start mb-4">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-          {Icon && <Icon size={24} />}
+const Button = ({ children, variant = 'primary', className = '', ...props }) => {
+  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2";
+  const variants = {
+    primary: "bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg",
+    secondary: "bg-white text-slate-700 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600",
+    outline: "border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50",
+    ghost: "text-slate-600 hover:bg-slate-100",
+    danger: "text-red-600 hover:bg-red-50"
+  };
+  return <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>{children}</button>;
+};
+
+const Card = ({ title, subtitle, icon: Icon, children, action, className = '' }) => (
+  <div className={`bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 ${className}`}>
+    <div className="flex justify-between items-start mb-6">
+      <div className="flex items-center gap-4">
+        {Icon && (
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+            <Icon size={24} strokeWidth={2} />
+          </div>
+        )}
+        <div>
+          <h3 className="text-lg font-bold text-slate-900 leading-tight">{title}</h3>
+          {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
         </div>
-        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
       </div>
       {action && <div>{action}</div>}
     </div>
-    <div className="text-gray-600">{children}</div>
+    <div className="text-slate-600">{children}</div>
   </div>
 );
 
-const Navbar = () => {
-  const { signOut, userRole, session } = useAuth();
-  return (
-    <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-      <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
-        <Building2 /> <span>PropMaster</span>
-      </div>
-      <div className="flex items-center gap-4">
-        <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-bold uppercase tracking-wider">
-          {userRole || 'Guest'}
-        </span>
-        <span className="hidden md:block text-sm text-gray-500">{session?.user?.email}</span>
-        <button onClick={signOut} className="text-gray-400 hover:text-red-600 transition-colors" title="Sign Out">
-          <LogOut size={20} />
-        </button>
-      </div>
-    </nav>
-  );
+const Badge = ({ children, type = 'neutral' }) => {
+  const styles = {
+    neutral: "bg-slate-100 text-slate-600",
+    success: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+    warning: "bg-amber-50 text-amber-700 border border-amber-100",
+    error: "bg-rose-50 text-rose-700 border border-rose-100",
+    info: "bg-blue-50 text-blue-700 border border-blue-100"
+  };
+  return <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase ${styles[type]}`}>{children}</span>;
 };
 
-const ProtectedLayout = () => {
+// --- 4. LANDING PAGE ---
+
+const LandingPage = () => {
   const { session } = useAuth();
-  if (!session) return <Navigate to="/login" replace />;
-  
+
+  if (session) return <Navigate to="/dashboard" />;
+
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
-      <Navbar />
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <Outlet />
-      </div>
+    <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-100">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-indigo-600 text-2xl font-black tracking-tight">
+            <div className="bg-indigo-600 text-white p-1.5 rounded-lg">
+              <Building2 size={24} />
+            </div>
+            <span>PropMaster</span>
+          </div>
+          <div className="flex gap-4">
+            <Link to="/login"><Button variant="ghost">Log In</Button></Link>
+            <Link to="/register"><Button variant="primary">Get Started</Button></Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="relative pt-20 pb-32 overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-indigo-200/20 rounded-full blur-3xl -z-10" />
+        <div className="max-w-7xl mx-auto px-6 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 text-indigo-700 font-medium text-sm mb-8 animate-fade-in-up">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+            </span>
+            The #1 Platform for Modern Housing
+          </div>
+          <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 tracking-tight mb-8">
+            Property Management <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">
+              Reimagined.
+            </span>
+          </h1>
+          <p className="text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
+            Seamlessly connect landlords, tenants, and real estate companies. Handle rent, maintenance, and analytics in one beautiful dashboard.
+          </p>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Link to="/register">
+              <Button className="h-14 px-8 text-lg">Start for Free <ArrowRight size={20}/></Button>
+            </Link>
+            <Button variant="secondary" className="h-14 px-8 text-lg">View Demo</Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid md:grid-cols-3 gap-8">
+            <Card title="For Tenants" subtitle="Live better" icon={User} className="bg-slate-50 border-none">
+              <ul className="space-y-3 mt-2">
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-emerald-500"/> One-click rent payments</li>
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-emerald-500"/> Instant maintenance requests</li>
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-emerald-500"/> Digital lease agreements</li>
+              </ul>
+            </Card>
+            <Card title="For Landlords" subtitle="Manage smarter" icon={Key} className="bg-slate-50 border-none">
+              <ul className="space-y-3 mt-2">
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-indigo-500"/> Automated rent collection</li>
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-indigo-500"/> Tenant screening tools</li>
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-indigo-500"/> Expense tracking</li>
+              </ul>
+            </Card>
+            <Card title="For Companies" subtitle="Scale faster" icon={LayoutGrid} className="bg-slate-50 border-none">
+              <ul className="space-y-3 mt-2">
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-violet-500"/> Multi-property analytics</li>
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-violet-500"/> Team role management</li>
+                <li className="flex items-center gap-2 text-slate-600"><CheckCircle size={16} className="text-violet-500"/> API Integration</li>
+              </ul>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      <footer className="bg-slate-900 text-slate-400 py-12 text-center">
+        <p>&copy; 2024 PropMaster Inc. Built with React & Supabase.</p>
+      </footer>
     </div>
   );
 };
 
-// --- 4. DASHBOARD VIEWS ---
+// --- 5. DASHBOARD COMPONENTS ---
 
-// TENANT DASHBOARD
-const TenantView = () => {
+const DashboardLayout = () => {
+  const { session, userRole, signOut } = useAuth();
+  
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <nav className="bg-white border-b border-slate-200 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Link to="/dashboard" className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
+              <Building2 /> <span className="hidden sm:inline">PropMaster</span>
+            </Link>
+            <div className="h-6 w-px bg-slate-200 mx-2"></div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+              {userRole} Portal
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex flex-col items-end">
+              <span className="text-sm font-medium text-slate-700">{session?.user?.email}</span>
+            </div>
+            <Button variant="ghost" onClick={signOut} className="text-slate-500 hover:text-rose-600">
+              <LogOut size={20} />
+            </Button>
+          </div>
+        </div>
+      </nav>
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <Outlet />
+      </main>
+    </div>
+  );
+};
+
+const TenantDashboard = () => {
   const { session } = useAuth();
   const [requests, setRequests] = useState([]);
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      const { data } = await supabase
-        .from('maintenance_requests')
-        .select('*')
-        .eq('tenant_id', session.user.id)
-        .order('created_at', { ascending: false });
-      if (data) setRequests(data);
-    };
-    fetchRequests();
+    supabase.from('maintenance_requests')
+      .select('*').eq('tenant_id', session.user.id).order('created_at', {ascending: false})
+      .then(({data}) => setRequests(data || []));
   }, [session]);
 
-  const handleRequest = async () => {
-    const desc = prompt("Describe the maintenance issue:");
+  const addRequest = async () => {
+    const desc = prompt("What needs fixing?");
     if (!desc) return;
-    
-    const { data, error } = await supabase
-      .from('maintenance_requests')
-      .insert({ tenant_id: session.user.id, description: desc, status: 'pending' })
-      .select();
-
-    if (!error && data) setRequests([data[0], ...requests]);
-    else alert("Error submitting request");
+    const { data } = await supabase.from('maintenance_requests').insert({
+      tenant_id: session.user.id, description: desc, status: 'pending'
+    }).select();
+    if(data) setRequests([data[0], ...requests]);
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Welcome Home</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card title="Lease Overview" icon={Home}>
-          <div className="space-y-2">
-            <p className="text-sm text-gray-500">Monthly Rent</p>
-            <p className="text-3xl font-bold text-gray-900">$1,200.00</p>
-            <p className="text-sm text-orange-600 font-medium bg-orange-50 inline-block px-2 py-1 rounded">
-              Due in 5 days
-            </p>
-            <button className="w-full mt-4 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">
-              Pay Now
-            </button>
+    <div className="space-y-6 animate-fade-in">
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card title="Current Lease" icon={Home} className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white border-none">
+          <div className="mt-2 text-indigo-100">
+            <p className="text-sm opacity-80">Monthly Rent</p>
+            <p className="text-4xl font-bold text-white mt-1 mb-4">$1,250<span className="text-lg font-normal opacity-70">.00</span></p>
+            <div className="flex justify-between items-end">
+              <div>
+                <p className="text-sm opacity-80">Next Due Date</p>
+                <p className="font-semibold">Oct 1st, 2025</p>
+              </div>
+              <button className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-bold hover:bg-indigo-50 transition">
+                Pay Now
+              </button>
+            </div>
           </div>
         </Card>
 
         <Card title="Maintenance" icon={Wrench} 
-          action={<button onClick={handleRequest} className="text-indigo-600 hover:text-indigo-800"><PlusCircle /></button>}>
-          <div className="max-h-60 overflow-y-auto space-y-3">
-            {requests.length === 0 ? <p className="text-sm text-gray-400">No active requests.</p> : (
-              requests.map(req => (
-                <div key={req.id} className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
-                  <span className="truncate w-2/3">{req.description}</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize
-                    ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                      req.status === 'resolved' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                    {req.status.replace('_', ' ')}
-                  </span>
-                </div>
-              ))
-            )}
+          action={<Button variant="outline" onClick={addRequest} className="!px-2 !py-1 text-xs"><PlusCircle size={14}/> New</Button>}>
+          <div className="h-48 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+            {requests.length === 0 && <div className="text-center text-slate-400 py-10">No active requests</div>}
+            {requests.map(r => (
+              <div key={r.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <span className="text-sm font-medium text-slate-700 truncate w-3/4">{r.description}</span>
+                <Badge type={r.status === 'pending' ? 'warning' : 'success'}>{r.status}</Badge>
+              </div>
+            ))}
           </div>
         </Card>
       </div>
@@ -199,66 +289,49 @@ const TenantView = () => {
   );
 };
 
-// LANDLORD DASHBOARD
-const LandlordView = () => {
+const LandlordDashboard = () => {
   const { session } = useAuth();
   const [properties, setProperties] = useState([]);
 
   useEffect(() => {
-    const fetchProps = async () => {
-      const { data } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('owner_id', session.user.id);
-      if (data) setProperties(data);
-    };
-    fetchProps();
+    supabase.from('properties').select('*').eq('owner_id', session.user.id)
+      .then(({data}) => setProperties(data || []));
   }, [session]);
 
   const addProperty = async () => {
-    const address = prompt("Enter Property Address:");
+    const address = prompt("Address:");
     if (!address) return;
-    const price = prompt("Enter Monthly Rent Amount:");
-    
-    const { data, error } = await supabase
-      .from('properties')
-      .insert({ owner_id: session.user.id, address, price: parseFloat(price), status: 'vacant' })
-      .select();
-
-    if (!error && data) setProperties([...properties, data[0]]);
+    const { data } = await supabase.from('properties').insert({
+      owner_id: session.user.id, address, price: 1500, status: 'vacant'
+    }).select();
+    if (data) setProperties([...properties, data[0]]);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Property Portfolio</h1>
-        <button onClick={addProperty} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">
-          <PlusCircle size={18} /> Add Property
-        </button>
+        <h2 className="text-2xl font-bold text-slate-800">My Properties</h2>
+        <Button onClick={addProperty}><PlusCircle size={18}/> Add Property</Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {properties.map(prop => (
-          <Card key={prop.id} title="Property" icon={Home}>
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-bold text-gray-900">{prop.address}</h4>
-                <p className="text-indigo-600 font-medium">${prop.price}/mo</p>
-              </div>
-              <span className={`px-2 py-1 rounded text-xs font-bold uppercase
-                ${prop.status === 'vacant' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                {prop.status}
-              </span>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {properties.map(p => (
+          <Card key={p.id} title="Apartment Unit" icon={Home}>
+            <div className="mb-4">
+              <h4 className="text-lg font-bold text-slate-800">{p.address}</h4>
+              <p className="text-slate-500 text-sm mt-1">${p.price}/month</p>
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3 text-sm">
-              <button className="text-gray-500 hover:text-indigo-600">Details</button>
-              <button className="text-gray-500 hover:text-indigo-600">History</button>
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+              <Badge type={p.status === 'vacant' ? 'error' : 'success'}>{p.status}</Badge>
+              <button className="text-indigo-600 text-sm font-semibold hover:underline">Manage</button>
             </div>
           </Card>
         ))}
         {properties.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-gray-300 text-gray-400">
-            No properties added yet.
+          <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50">
+            <Home size={48} className="mx-auto text-slate-300 mb-4"/>
+            <p className="text-slate-500">No properties yet.</p>
+            <button onClick={addProperty} className="text-indigo-600 font-bold mt-2 hover:underline">Add your first one</button>
           </div>
         )}
       </div>
@@ -266,113 +339,73 @@ const LandlordView = () => {
   );
 };
 
-// COMPANY DASHBOARD
-const CompanyView = () => (
-  <div className="space-y-8">
-    <h1 className="text-2xl font-bold text-gray-900">Enterprise Dashboard</h1>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="bg-indigo-600 text-white p-6 rounded-xl shadow-lg">
-        <p className="text-indigo-200">Total Revenue (YTD)</p>
-        <p className="text-4xl font-bold mt-2">$2.4M</p>
-      </div>
-      <Card title="Active Agents" icon={User}>
-        <p className="text-3xl font-bold text-gray-900">24</p>
-        <p className="text-sm text-green-600 mt-1 flex items-center gap-1"><CheckCircle size={14}/> 100% Online</p>
-      </Card>
-      <Card title="System Alerts" icon={AlertCircle}>
-        <p className="text-3xl font-bold text-gray-900">3</p>
-        <p className="text-sm text-red-600 mt-1">Requires attention</p>
-      </Card>
-    </div>
-    
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 font-medium text-gray-700">Recent Transactions</div>
-      <div className="p-6 text-gray-500 text-center italic">
-        Transaction table placeholder...
-      </div>
-    </div>
-  </div>
-);
-
-// --- 5. AUTH PAGES ---
+// --- 6. AUTH PAGE (Login/Register) ---
 
 const AuthPage = ({ type }) => {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ email: '', password: '', role: 'tenant', fullName: '' });
+  const [formData, setFormData] = useState({ email: '', password: '', role: 'tenant', name: '' });
+  const isRegister = type === 'register';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
-    if (type === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ 
-        email: formData.email, 
-        password: formData.password 
-      });
-      if (error) alert(error.message);
-    } else {
-      // Register
+    const { email, password, role, name } = formData;
+    
+    if (isRegister) {
       const { error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: { full_name: formData.fullName, role: formData.role }
-        }
+        email, password, options: { data: { full_name: name, role } }
       });
+      if (error) alert(error.message); else alert("Check your email!");
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) alert(error.message);
-      else alert("Check your email for confirmation link!");
     }
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100">
-        <div className="flex justify-center mb-6 text-indigo-600">
-          <Building2 size={48} />
-        </div>
-        <h2 className="text-2xl font-bold text-center mb-8 text-gray-800">
-          {type === 'login' ? 'Welcome Back' : 'Create Account'}
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl w-full max-w-md border border-slate-100 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-violet-500" />
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {type === 'register' && (
-            <input type="text" placeholder="Full Name" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              onChange={e => setFormData({...formData, fullName: e.target.value})} required />
-          )}
-          
-          <input type="email" placeholder="Email Address" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-            onChange={e => setFormData({...formData, email: e.target.value})} required />
-            
-          <input type="password" placeholder="Password" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-            onChange={e => setFormData({...formData, password: e.target.value})} required />
+        <div className="text-center mb-8">
+          <div className="inline-flex p-3 bg-indigo-50 rounded-2xl text-indigo-600 mb-4">
+            <Building2 size={32} />
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900">{isRegister ? 'Join PropMaster' : 'Welcome Back'}</h2>
+          <p className="text-slate-500 mt-2">{isRegister ? 'Manage your property journey' : 'Enter your details to access'}</p>
+        </div>
 
-          {type === 'register' && (
-            <div className="grid grid-cols-3 gap-2 pt-2">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {isRegister && (
+            <input type="text" placeholder="Full Name" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition"
+              onChange={e => setFormData({...formData, name: e.target.value})} />
+          )}
+          <input type="email" placeholder="Email Address" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition"
+            onChange={e => setFormData({...formData, email: e.target.value})} />
+          <input type="password" placeholder="Password" required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition"
+            onChange={e => setFormData({...formData, password: e.target.value})} />
+
+          {isRegister && (
+            <div className="grid grid-cols-3 gap-2">
               {['tenant', 'landlord', 'company'].map(r => (
-                <button type="button" key={r}
-                  onClick={() => setFormData({...formData, role: r})}
-                  className={`py-2 px-1 text-xs font-bold uppercase rounded border transition-all ${
-                    formData.role === r 
-                      ? 'bg-indigo-600 text-white border-indigo-600' 
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'
-                  }`}
-                >
+                <button type="button" key={r} onClick={() => setFormData({...formData, role: r})}
+                  className={`py-2 px-1 text-xs font-bold uppercase rounded-lg border transition-all ${formData.role === r ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}>
                   {r}
                 </button>
               ))}
             </div>
           )}
 
-          <button disabled={loading} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition disabled:opacity-50 mt-4">
-            {loading ? 'Processing...' : (type === 'login' ? 'Sign In' : 'Register')}
-          </button>
+          <Button className="w-full py-4 text-lg shadow-indigo-200" disabled={loading}>
+            {loading ? 'Processing...' : (isRegister ? 'Create Account' : 'Sign In')}
+          </Button>
         </form>
 
-        <p className="text-center mt-6 text-sm text-gray-500">
-          {type === 'login' ? "Don't have an account?" : "Already have an account?"}
-          <Link to={type === 'login' ? '/register' : '/login'} className="ml-2 text-indigo-600 font-bold hover:underline">
-            {type === 'login' ? 'Sign Up' : 'Log In'}
+        <p className="text-center mt-8 text-slate-500">
+          {isRegister ? 'Already have an account?' : "Don't have an account?"}
+          <Link to={isRegister ? '/login' : '/register'} className="ml-2 text-indigo-600 font-bold hover:text-indigo-700">
+            {isRegister ? 'Login' : 'Sign Up'}
           </Link>
         </p>
       </div>
@@ -380,47 +413,38 @@ const AuthPage = ({ type }) => {
   );
 };
 
-// --- 6. ROUTING & LOGIC ---
+// --- 7. ROUTING ---
 
-const RoleBasedRedirect = () => {
+const RoleRedirect = () => {
   const { userRole } = useAuth();
-  
-  // While fetching role
-  if (!userRole) return <div className="p-10 text-center text-gray-500">Loading your profile...</div>;
-
-  switch (userRole) {
-    case 'tenant': return <TenantView />;
-    case 'landlord': return <LandlordView />;
-    case 'company': return <CompanyView />;
-    default: return <div className="p-10 text-center text-red-500">Error: Unknown Role</div>;
-  }
+  if (!userRole) return <div className="min-h-screen flex items-center justify-center text-slate-400">Loading Dashboard...</div>;
+  if (userRole === 'tenant') return <TenantDashboard />;
+  if (userRole === 'landlord') return <LandlordDashboard />;
+  return <div className="p-8 text-center text-slate-500">Company Dashboard Placeholder</div>;
 };
 
-export default function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<AuthPage type="login" />} />
-          <Route path="/register" element={<AuthPage type="register" />} />
-          
-          <Route element={<ProtectedLayout />}>
-            <Route path="/" element={<RoleBasedRedirect />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </Router>
-    </AuthProvider>
-  );
+const App = () => (
+  <AuthProvider>
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<AuthPage type="login" />} />
+        <Route path="/register" element={<AuthPage type="register" />} />
+        
+        <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route index element={<RoleRedirect />} />
+        </Route>
+        
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </Router>
+  </AuthProvider>
+);
+
+// --- 8. MOUNT ---
+const root = document.getElementById('root');
+if (root) {
+  createRoot(root).render(<React.StrictMode><App /></React.StrictMode>);
 }
 
-// --- 7. MOUNTING TO DOM (Replaces main.jsx) ---
-const rootElement = document.getElementById('root');
-if (rootElement && !rootElement.innerHTML) {
-  const root = createRoot(rootElement);
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}
+export default App;
