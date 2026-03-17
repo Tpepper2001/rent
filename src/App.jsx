@@ -1,129 +1,157 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Dna, 
-  Globe, 
-  Cpu, 
-  TrendingUp, 
-  BookOpen, 
-  MessageSquare, 
-  ArrowRight, 
-  Github, 
-  Linkedin, 
-  Twitter,
-  ExternalLink,
-  Layers
+  Dna, Globe, Cpu, TrendingUp, BookOpen, 
+  ArrowRight, Github, Linkedin, Mail, ExternalLink, 
+  Layers, Beaker, Zap, Shield
 } from 'lucide-react';
 
-// --- ANIMATION VARIANTS ---
-const fadeInUp = {
-  initial: { opacity: 0, y: 60 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
-};
+// --- INLINE GLOBAL CSS ---
+const GlobalStyles = () => (
+  <style dangerouslySetInnerHTML={{ __html: `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@300;500;700&display=swap');
+    
+    :root {
+      --bg: #050505;
+      --accent: #10b981; /* Emerald 500 */
+      --secondary: #3b82f6; /* Blue 500 */
+    }
 
-const staggerContainer = {
-  animate: { transition: { staggerChildren: 0.1 } }
-};
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg);
+      color: white;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .hero-glow {
+      position: absolute;
+      width: 40vw;
+      height: 40vw;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, rgba(5, 5, 5, 0) 70%);
+      filter: blur(60px);
+      z-index: -1;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #050505;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #222;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+  `}} />
+);
 
 // --- COMPONENTS ---
 
 const Navbar = () => (
-  <nav className="fixed top-0 w-full z-50 px-6 py-4 flex justify-between items-center backdrop-blur-md bg-black/10 border-b border-white/10">
-    <motion.div 
-      initial={{ x: -20, opacity: 0 }} 
-      animate={{ x: 0, opacity: 1 }}
-      className="text-xl font-bold tracking-tighter text-white"
-    >
-      TOYIN<span className="text-gold-500 text-emerald-500">.ISHOLA</span>
-    </motion.div>
-    <div className="hidden md:flex space-x-8 text-sm font-medium text-gray-300">
-      {['Research', 'Portfolio', 'FinTech Lab', 'Insights'].map((item) => (
-        <a key={item} href={`#${item.toLowerCase()}`} className="hover:text-emerald-400 transition-colors">{item}</a>
-      ))}
+  <nav className="fixed top-0 w-full z-50 px-6 py-5 flex justify-between items-center glass">
+    <div className="text-xl font-bold tracking-tighter uppercase">
+      Toyin<span className="text-emerald-500">.Ishola</span>
     </div>
-    <button className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-full text-sm font-bold transition-all transform hover:scale-105">
-      Collaborate
+    <div className="hidden md:flex space-x-8 text-xs font-bold uppercase tracking-widest text-gray-400">
+      <a href="#about" className="hover:text-emerald-400 transition-colors">About</a>
+      <a href="#research" className="hover:text-emerald-400 transition-colors">Research</a>
+      <a href="#fintech" className="hover:text-emerald-400 transition-colors">FinTech Lab</a>
+      <a href="#contact" className="hover:text-emerald-400 transition-colors">Contact</a>
+    </div>
+    <button className="bg-white text-black px-5 py-2 rounded-full text-xs font-black hover:bg-emerald-500 hover:text-white transition-all">
+      COLLABORATE
     </button>
   </nav>
 );
 
 const Hero = () => (
-  <section className="relative h-screen flex items-center justify-center overflow-hidden bg-[#050505]">
-    {/* Animated Background Gradients */}
-    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-900/20 blur-[120px] rounded-full" />
-    <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/20 blur-[120px] rounded-full" />
+  <section className="relative min-h-screen flex items-center justify-center pt-20">
+    <div className="hero-glow" style={{ top: '-10%', left: '10%' }} />
+    <div className="hero-glow" style={{ bottom: '0%', right: '0%', background: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, rgba(5, 5, 5, 0) 70%)' }} />
     
-    <div className="container mx-auto px-6 z-10 text-center">
+    <div className="container mx-auto px-6 text-center">
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <span className="inline-block py-1 px-3 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono mb-4">
-          BIOINFORMATICS • FINTECH • STORYTELLING
-        </span>
-        <h1 className="text-5xl md:text-8xl font-black text-white mb-6 tracking-tight">
-          Research. <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-500">Innovation.</span> <br /> Impact.
+        <div className="inline-flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full mb-8">
+          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+          <span className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em]">Available for Innovation 2024</span>
+        </div>
+        
+        <h1 className="text-6xl md:text-9xl font-black mb-8 tracking-tighter leading-[0.9]">
+          RESEARCH.<br />
+          <span className="text-transparent" style={{ WebkitTextStroke: '1px rgba(255,255,255,0.3)' }}>INNOVATION.</span><br />
+          IMPACT.
         </h1>
-        <p className="max-w-2xl mx-auto text-gray-400 text-lg md:text-xl mb-10">
-          Bridging the gap between academic excellence and technological execution. 
-          Building ecosystems for environmental health and financial inclusion.
+        
+        <p className="max-w-2xl mx-auto text-gray-400 text-lg md:text-xl mb-12 font-light leading-relaxed">
+          Bridging the gap between academic research in <span className="text-white">Bioinformatics</span> and 
+          disruptive <span className="text-white">FinTech ecosystems</span>. 
         </p>
-        <div className="flex flex-col md:flex-row justify-center gap-4">
-          <button className="px-8 py-4 bg-white text-black font-bold rounded-lg flex items-center justify-center hover:bg-emerald-400 transition-colors group">
-            Explore My Work <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={18} />
+
+        <div className="flex flex-col md:flex-row justify-center items-center gap-6">
+          <button className="w-full md:w-auto px-10 py-5 bg-emerald-600 rounded-xl font-bold flex items-center justify-center hover:bg-emerald-500 transition-all group">
+            View Research <ArrowRight className="ml-2 group-hover:translate-x-2 transition-transform" />
           </button>
-          <button className="px-8 py-4 border border-white/20 text-white font-bold rounded-lg hover:bg-white/5 transition-colors">
-            View Publications
+          <button className="w-full md:w-auto px-10 py-5 glass rounded-xl font-bold hover:bg-white/10 transition-all">
+            The FinTech Lab
           </button>
         </div>
       </motion.div>
     </div>
-
-    {/* Scroll Indicator */}
-    <motion.div 
-      animate={{ y: [0, 10, 0] }} 
-      transition={{ repeat: Infinity, duration: 2 }}
-      className="absolute bottom-10 left-1/2 -translate-x-1/2 text-gray-500"
-    >
-      <div className="w-[1px] h-12 bg-gradient-to-b from-emerald-500 to-transparent mx-auto" />
-    </motion.div>
   </section>
+);
+
+const SectionHeading = ({ subtitle, title }) => (
+  <div className="mb-16">
+    <span className="text-emerald-500 font-black text-xs uppercase tracking-[0.3em]">{subtitle}</span>
+    <h2 className="text-4xl md:text-5xl font-bold mt-2">{title}</h2>
+  </div>
 );
 
 const ResearchSection = () => {
   const papers = [
-    { title: "Phytoremediation of Contaminants", cat: "Environmental Science", icon: <Globe size={20}/> },
-    { title: "Bioinformatics in Health Governance", cat: "Health Studies", icon: <Dna size={20}/> },
-    { title: "FinTech Opportunities in Emerging Markets", cat: "Economics", icon: <TrendingUp size={20}/> },
+    { title: "Phytoremediation of Contaminants", tag: "Env Science", icon: <Globe size={24} /> },
+    { title: "Bioinformatics in Public Health", tag: "Health", icon: <Dna size={24} /> },
+    { title: "Digital Ajo: Modernizing Savings", tag: "FinTech", icon: <TrendingUp size={24} /> },
   ];
 
   return (
-    <section id="research" className="py-24 bg-[#080808]">
+    <section id="research" className="py-24">
       <div className="container mx-auto px-6">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-16">
-          <div>
-            <h2 className="text-emerald-500 font-mono text-sm mb-2 uppercase tracking-widest font-bold">Academic Repository</h2>
-            <h3 className="text-4xl font-bold text-white">Featured Publications</h3>
-          </div>
-          <button className="text-gray-400 hover:text-white flex items-center mt-4 md:mt-0">
-            View all papers <ExternalLink className="ml-2" size={16} />
-          </button>
-        </div>
-
+        <SectionHeading subtitle="Academic Archive" title="Selected Publications" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {papers.map((paper, idx) => (
-            <motion.div
-              key={idx}
+          {papers.map((p, i) => (
+            <motion.div 
+              key={i}
               whileHover={{ y: -10 }}
-              className="p-8 rounded-2xl bg-[#111] border border-white/5 hover:border-emerald-500/50 transition-all cursor-pointer group"
+              className="p-10 rounded-3xl glass hover:border-emerald-500/50 transition-all cursor-pointer group"
             >
-              <div className="text-emerald-500 mb-6 group-hover:scale-110 transition-transform">{paper.icon}</div>
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{paper.cat}</span>
-              <h4 className="text-xl font-bold text-white mt-2 mb-4 leading-snug">{paper.title}</h4>
-              <div className="flex space-x-4 mt-6">
-                <span className="text-xs text-emerald-400 font-mono underline">ABSTRACT</span>
-                <span className="text-xs text-gray-500 font-mono underline">PDF DOWNLOAD</span>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-8 group-hover:bg-emerald-500 group-hover:text-black transition-all">
+                {p.icon}
+              </div>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{p.tag}</span>
+              <h3 className="text-2xl font-bold mt-4 mb-8 leading-tight">{p.title}</h3>
+              <div className="flex items-center text-xs font-bold text-emerald-400 group-hover:translate-x-2 transition-transform">
+                READ ABSTRACT <ArrowRight size={14} className="ml-2" />
               </div>
             </motion.div>
           ))}
@@ -133,33 +161,36 @@ const ResearchSection = () => {
   );
 };
 
-const FintechLab = () => (
-  <section id="fintech lab" className="py-24 bg-black relative overflow-hidden">
-    {/* Blueprint Grid Background */}
-    <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(#22c55e 1px, transparent 1px), linear-gradient(90deg, #22c55e 1px, transparent 1px)', backgroundSize: '50px 50px' }} />
-    
-    <div className="container mx-auto px-6 relative z-10">
-      <div className="max-w-4xl">
-        <h2 className="text-blue-500 font-mono text-sm mb-2 uppercase tracking-widest font-bold">Innovation Hub</h2>
-        <h3 className="text-5xl font-bold text-white mb-8">The FinTech Lab</h3>
-        <p className="text-gray-400 text-xl mb-12">
-          Developing digital product ecosystems like the <span className="text-white font-bold">AJO platform</span> and <span className="text-white font-bold">ContributTech</span>—reimaging traditional savings for the digital age.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          <div className="border-l-2 border-emerald-500 pl-6 space-y-4">
-            <h4 className="text-white font-bold text-xl uppercase tracking-tighter">Current MVP: Anonymous VoiceShare</h4>
-            <p className="text-gray-400">A WordPress plugin designed for secure, untraceable storytelling and whistleblowing within corporate ecosystems.</p>
-            <button className="text-emerald-400 font-bold flex items-center group">
-              View Roadmap <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={16}/>
-            </button>
-          </div>
-          <div className="border-l-2 border-blue-500 pl-6 space-y-4">
-            <h4 className="text-white font-bold text-xl uppercase tracking-tighter">Scholarly PDF Fetcher AI</h4>
-            <p className="text-gray-400">Automating the retrieval of academic resources using AI-driven API calls to global repositories.</p>
-            <button className="text-blue-400 font-bold flex items-center group">
-              Try Prototype <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={16}/>
-            </button>
+const FinTechLab = () => (
+  <section id="fintech" className="py-24 relative overflow-hidden">
+    <div className="container mx-auto px-6">
+      <div className="p-12 md:p-20 rounded-[40px] bg-gradient-to-br from-zinc-900 to-black border border-white/5 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-10 opacity-10">
+          <Layers size={200} />
+        </div>
+        
+        <div className="relative z-10 max-w-3xl">
+          <SectionHeading subtitle="Innovation Lab" title="The Future of Financial Tools" />
+          <p className="text-gray-400 text-lg mb-12">
+            Currently developing high-impact tools for the digital economy. From automated research fetchers 
+            to peer-to-peer contribution systems.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="space-y-4">
+              <div className="text-blue-500 flex items-center space-x-2">
+                <Shield size={20} /> <span className="text-xs font-bold uppercase tracking-widest">Live Concept</span>
+              </div>
+              <h4 className="text-xl font-bold italic">Anonymous VoiceShare</h4>
+              <p className="text-gray-500 text-sm">A secure WordPress plugin for untraceable feedback and whistleblowing.</p>
+            </div>
+            <div className="space-y-4">
+              <div className="text-emerald-500 flex items-center space-x-2">
+                <Beaker size={20} /> <span className="text-xs font-bold uppercase tracking-widest">In Development</span>
+              </div>
+              <h4 className="text-xl font-bold italic">Scholarly PDF AI</h4>
+              <p className="text-gray-500 text-sm">LLM-powered tool to automate academic resource discovery.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -168,79 +199,59 @@ const FintechLab = () => (
 );
 
 const Footer = () => (
-  <footer className="py-12 border-t border-white/10 bg-[#050505]">
-    <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center">
-      <div className="mb-6 md:mb-0">
-        <p className="text-gray-500 text-sm italic">"African-rooted, globally competitive."</p>
-        <p className="text-gray-400 text-xs mt-2">© 2024 Oluwatoyin Ishola. All Rights Reserved.</p>
+  <footer id="contact" className="py-20 border-t border-white/5 mt-20">
+    <div className="container mx-auto px-6 text-center">
+      <h2 className="text-4xl font-bold mb-8 italic">Let's build the future together.</h2>
+      <div className="flex justify-center space-x-8 mb-12">
+        <a href="#" className="p-4 glass rounded-full hover:text-emerald-500 transition-colors"><Github /></a>
+        <a href="#" className="p-4 glass rounded-full hover:text-emerald-500 transition-colors"><Linkedin /></a>
+        <a href="#" className="p-4 glass rounded-full hover:text-emerald-500 transition-colors"><Mail /></a>
       </div>
-      <div className="flex space-x-6">
-        <Github className="text-gray-500 hover:text-white cursor-pointer transition-colors" size={20}/>
-        <Linkedin className="text-gray-500 hover:text-white cursor-pointer transition-colors" size={20}/>
-        <Twitter className="text-gray-500 hover:text-white cursor-pointer transition-colors" size={20}/>
-      </div>
+      <p className="text-gray-600 text-xs tracking-[0.4em] uppercase font-bold">Oluwatoyin Ishola • 2024</p>
     </div>
   </footer>
 );
 
-// --- MAIN APP COMPONENT ---
-
+// --- MAIN APP ---
 export default function App() {
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
-
   return (
-    <div className="bg-black text-white selection:bg-emerald-500/30">
-      {/* Top Progress Bar */}
-      <motion.div className="fixed top-0 left-0 right-0 h-[2px] bg-emerald-500 origin-left z-[60]" style={{ scaleX }} />
-      
+    <div className="min-h-screen">
+      <GlobalStyles />
       <Navbar />
       
       <main>
         <Hero />
         
-        {/* About Teaser / Stats */}
-        <section className="py-20 border-y border-white/5">
-          <div className="container mx-auto px-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              {[
-                { label: 'Published Papers', val: '12+' },
-                { label: 'Tech Projects', val: '08' },
-                { label: 'SDG Initiatives', val: '05' },
-                { label: 'Years Experience', val: '04' }
-              ].map((stat, i) => (
-                <div key={i} className="text-center">
-                  <div className="text-3xl font-black text-white">{stat.val}</div>
-                  <div className="text-gray-500 text-xs uppercase tracking-widest mt-1 font-bold">{stat.label}</div>
-                </div>
-              ))}
+        {/* Bio Section */}
+        <section id="about" className="py-24 glass">
+          <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
+            <div className="relative">
+              <div className="w-full aspect-square rounded-[60px] bg-emerald-950/30 border border-emerald-500/20 flex items-center justify-center">
+                <Dna size={120} className="text-emerald-500 opacity-20" />
+              </div>
+              <div className="absolute -bottom-6 -right-6 p-8 glass rounded-3xl">
+                <div className="text-4xl font-black text-white">04+</div>
+                <div className="text-[10px] text-emerald-500 font-bold uppercase">Years Excellence</div>
+              </div>
+            </div>
+            <div>
+              <SectionHeading subtitle="Profile" title="Researcher. Developer. Storyteller." />
+              <p className="text-gray-400 leading-loose mb-8">
+                With a foundation in Environmental Science from Kaduna State University and a career 
+                built on digital transformation, I specialize in multidisciplinary problem-solving. 
+                Whether as an Editor-in-Chief or an SDG Ambassador, my focus remains the same: 
+                using technology to amplify human impact.
+              </p>
+              <button className="flex items-center font-bold text-sm border-b-2 border-emerald-500 pb-2 hover:text-emerald-500 transition-all">
+                DOWNLOAD FULL CV <ExternalLink size={16} className="ml-2" />
+              </button>
             </div>
           </div>
         </section>
 
         <ResearchSection />
         
-        <FintechLab />
-
-        {/* Call to Action Section */}
-        <section className="py-24 bg-gradient-to-b from-black to-emerald-950/20 text-center">
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            whileInView={{ opacity: 1 }}
-            className="container mx-auto px-6"
-          >
-            <h2 className="text-4xl font-bold mb-8">Have a project in mind?</h2>
-            <p className="text-gray-400 mb-10 max-w-xl mx-auto">
-              Whether it's academic collaboration, software development, or storytelling—let's build something impactful.
-            </p>
-            <a 
-              href="mailto:hello@toyinishola.com"
-              className="inline-block px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-full transition-all"
-            >
-              Get In Touch
-            </a>
-          </motion.div>
-        </section>
+        <FinTechLab />
       </main>
 
       <Footer />
